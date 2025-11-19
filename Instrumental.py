@@ -96,3 +96,117 @@ def open_folder(path: Path) -> None:
         subprocess.run(["open", str(path)])
     else:
         subprocess.run(["xdg-open", str(path)])
+
+#основа для Tkinter
+class TzApp(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("DEAL Генератор технических заданий")
+        self.geometry("900x600")
+        self.minsize(900, 600)
+
+        # состояние приложения
+        self.template_path: Optional[Path] = None
+        self.output_dir: Path = Path("output")
+        self.base_name: str = "tz"
+        self.form_data: Dict[str, str] = {k: "" for k, _ in DEFAULT_FIELDS}
+        self.generated_docx: Optional[Path] = None
+        self.generated_pdf: Optional[Path] = None
+
+        # контейнер для экранов
+        container = ttk.Frame(self)
+        container.pack(fill="both", expand=True)
+        container.rowconfigure(0, weight=1)
+        container.columnconfigure(0, weight=1)
+
+        # создаём кадры-экраны
+        self.frames = {}
+        for FrameCls in (MainMenuFrame, FormFrame, PreviewFrame, ResultFrame):
+            frame = FrameCls(parent=container, controller=self)
+            frame.grid(row=0, column=0, sticky="nsew")
+            self.frames[FrameCls.__name__] = frame
+
+        self.show_frame("MainMenuFrame")
+
+    def show_frame(self, name: str):
+        frame = self.frames[name]
+        frame.tkraise()
+        if hasattr(frame, "on_show"):
+            frame.on_show()  # type: ignore[call-arg]
+
+#фреймы
+class MainMenuFrame(ttk.Frame):
+    def __init__(self, parent, controller: TzApp):
+        super().__init__(parent)
+        self.controller = controller
+
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(1, weight=1)
+
+        # Заголовок
+        title = ttk.Label(
+            self,
+            text="DEAL Генератор технических заданий",
+            font=("Arial", 24, "bold"),
+            anchor="center",
+        )
+        title.grid(row=0, column=0, pady=(40, 20))
+
+        # центральная панель с кнопками
+        center = ttk.Frame(self)
+        center.grid(row=1, column=0)
+        for i in range(3):
+            center.rowconfigure(i, pad=10)
+
+        btn_new = ttk.Button(center, text="Создать новое ТЗ", command=self.on_new_tz)
+        btn_new.grid(row=0, column=0, ipady=10, ipadx=40, pady=10)
+
+        btn_template = ttk.Button(
+            center, text="Загрузить шаблон DOCX", command=self.on_load_template
+        )
+        btn_template.grid(row=1, column=0, ipady=10, ipadx=40, pady=10)
+
+        # подпись о текущем шаблоне
+        self.template_label = ttk.Label(
+            self,
+            text="Текущий шаблон: [по умолчанию: templates/ts_template.docx]",
+            font=("Arial", 10),
+        )
+        self.template_label.grid(row=2, column=0, pady=(40, 20))
+
+        # кнопка Выход в правом нижнем углу
+        bottom = ttk.Frame(self)
+        bottom.grid(row=3, column=0, sticky="se", padx=20, pady=20)
+        btn_exit = ttk.Button(bottom, text="Выход", command=self.controller.destroy)
+        btn_exit.pack()
+
+    def on_show(self):
+        # обновить надпись о шаблоне
+        if self.controller.template_path:
+            text = f"Текущий шаблон: {self.controller.template_path}"
+        else:
+            text = "Текущий шаблон: [по умолчанию: templates/ts_template.docx]"
+        self.template_label.config(text=text)
+
+    def on_load_template(self):
+        file_path = filedialog.askopenfilename(
+            title="Выберите шаблон DOCX",
+            filetypes=[("DOCX файлы", "*.docx")],
+        )
+        if file_path:
+            self.controller.template_path = Path(file_path)
+            self.on_show()
+
+    def reset_state(self):
+        self.form_data = {k: "" for k, _ in DEFAULT_FIELDS}
+        self.template_path = None
+        self.generated_docx = None
+        self.generated_pdf = None
+
+    def on_new_tz(self):
+        self.controller.reset_state()
+        self.controller.show_frame("FormFrame")
+
+name__ == "__main__":
+    app = TzApp()
+    app.mainloop()
